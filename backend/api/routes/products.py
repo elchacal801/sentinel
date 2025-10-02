@@ -2,11 +2,18 @@
 Intelligence Products API Routes
 Endpoints for generating and retrieving intelligence products
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from fastapi.responses import Response
 from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
+
+from utils.database import get_neo4j_session
+from utils.graph import KnowledgeGraphManager
+from services.products.current_intel import CurrentIntelligenceGenerator
+from services.products.iw_alerts import IndicationsWarningSystem
+from services.products.target_packages import TargetPackageGenerator
+from services.products.executive_briefs import ExecutiveBriefingGenerator
 
 router = APIRouter()
 
@@ -46,7 +53,10 @@ async def list_products(
 
 
 @router.get("/current-intelligence", summary="Generate current intelligence")
-async def generate_current_intelligence(date: Optional[str] = None):
+async def generate_current_intelligence(
+    time_period_hours: int = Query(24, ge=1, le=168),
+    session = Depends(get_neo4j_session)
+):
     """
     Generate current intelligence briefing
     
@@ -58,29 +68,35 @@ async def generate_current_intelligence(date: Optional[str] = None):
     - Priority actions
     - Intelligence gaps
     """
-    return {
-        "classification": "UNCLASSIFIED",
-        "product_type": "current_intelligence",
-        "date": date or datetime.now().strftime("%Y-%m-%d"),
-        "summary": {
-            "key_developments": [],
-            "new_threats": [],
-            "asset_changes": {
-                "discovered": 0,
-                "modified": 0,
-                "removed": 0
-            },
-            "priority_actions": [],
-            "intelligence_gaps": []
-        },
-        "message": "Current intelligence generation not yet implemented"
-    }
+    graph_mgr = KnowledgeGraphManager()
+    intel_gen = CurrentIntelligenceGenerator()
+    
+    # Query data from graph
+    assets_query = "MATCH (a:Asset) RETURN a LIMIT 1000"
+    assets_result = await graph_mgr.query_graph(session, assets_query, {})
+    assets = [dict(r["a"]) for r in assets_result]
+    
+    vulns_query = "MATCH (v:Vulnerability) RETURN v LIMIT 1000"
+    vulns_result = await graph_mgr.query_graph(session, vulns_query, {})
+    vulnerabilities = [dict(r["v"]) for r in vulns_result]
+    
+    threats_query = "MATCH (t:ThreatActor) RETURN t LIMIT 1000"
+    threats_result = await graph_mgr.query_graph(session, threats_query, {})
+    threats = [dict(r["t"]) for r in threats_result]
+    
+    # Generate briefing
+    briefing = await intel_gen.generate_daily_brief(
+        assets, vulnerabilities, threats, None, time_period_hours
+    )
+    
+    return briefing
 
 
 @router.get("/indications-warning", summary="Get I&W alerts")
 async def get_indications_warning(
     severity: Optional[str] = None,
-    hours: int = Query(24, ge=1, le=168)
+    hours: int = Query(24, ge=1, le=168),
+    session = Depends(get_neo4j_session)
 ):
     """
     Get Indications & Warning (I&W) alerts
@@ -92,17 +108,42 @@ async def get_indications_warning(
     - Threat actor activity
     - Vulnerability weaponization
     """
-    return {
-        "classification": "UNCLASSIFIED//FOUO",
-        "product_type": "indications_warning",
-        "time_range_hours": hours,
-        "alerts": [],
-        "message": "I&W system not yet implemented"
-    }
+    graph_mgr = KnowledgeGraphManager()
+    iw_system = IndicationsWarningSystem()
+    
+    # Query data from graph
+    assets_query = "MATCH (a:Asset) RETURN a LIMIT 1000"
+    assets_result = await graph_mgr.query_graph(session, assets_query, {})
+    assets = [dict(r["a"]) for r in assets_result]
+    
+    vulns_query = "MATCH (v:Vulnerability) RETURN v LIMIT 1000"
+    vulns_result = await graph_mgr.query_graph(session, vulns_query, {})
+    vulnerabilities = [dict(r["v"]) for r in vulns_result]
+    
+    threats_query = "MATCH (t:ThreatActor) RETURN t LIMIT 1000"
+    threats_result = await graph_mgr.query_graph(session, threats_query, {})
+    threats = [dict(r["t"]) for r in threats_result]
+    
+    # Generate alerts
+    alerts = await iw_system.generate_iw_alerts(
+        assets, vulnerabilities, threats, None, None
+    )
+    
+    # Filter by severity if specified
+    if severity:
+        alerts = [a for a in alerts if a.get("severity") == severity]
+    
+    # Generate summary
+    summary = await iw_system.generate_iw_summary(alerts)
+    
+    return summary
 
 
 @router.post("/target-package/{asset_id}", summary="Generate target package")
-async def generate_target_package(asset_id: str):
+async def generate_target_package(
+    asset_id: str,
+    session = Depends(get_neo4j_session)
+):
     """
     Generate comprehensive target package for an asset
     
@@ -115,14 +156,54 @@ async def generate_target_package(asset_id: str):
     - Historical timeline
     - Recommendations
     """
-    return {
-        "classification": "UNCLASSIFIED//FOUO",
-        "product_type": "target_package",
-        "asset_id": asset_id,
-        "status": "generated",
-        "product_id": "placeholder-target-pkg",
-        "message": "Target package generation not yet implemented"
-    }
+    graph_mgr = KnowledgeGraphManager()
+    target_gen = TargetPackageGenerator()
+    
+    # Get target asset
+    target_asset = await graph_mgr.get_asset(session, asset_id)
+    if not target_asset:
+        return {
+            "classification": "UNCLASSIFIED",
+            "error": "Asset not found",
+            "asset_id": asset_id
+        }
+    
+    # Get related assets
+    related_query = """
+    MATCH (a:Asset {id: $asset_id})-[r]-(related:Asset)
+    RETURN related
+    LIMIT 50
+    """
+    related_result = await graph_mgr.query_graph(session, related_query, {"asset_id": asset_id})
+    related_assets = [dict(r["related"]) for r in related_result]
+    
+    # Get vulnerabilities
+    vulns_query = """
+    MATCH (a:Asset {id: $asset_id})-[:HAS_VULNERABILITY]->(v:Vulnerability)
+    RETURN v
+    """
+    vulns_result = await graph_mgr.query_graph(session, vulns_query, {"asset_id": asset_id})
+    vulnerabilities = [dict(r["v"]) for r in vulns_result]
+    
+    # Get threats
+    threats_query = """
+    MATCH (t:ThreatActor)-[r]->(a:Asset {id: $asset_id})
+    RETURN t
+    """
+    threats_result = await graph_mgr.query_graph(session, threats_query, {"asset_id": asset_id})
+    threats = [dict(r["t"]) for r in threats_result]
+    
+    # Generate package
+    package = await target_gen.generate_target_package(
+        target_asset["asset"],
+        related_assets,
+        vulnerabilities,
+        threats,
+        None,  # attack_paths
+        None   # risk_assessment
+    )
+    
+    return package
 
 
 @router.get("/target-package/{product_id}", summary="Get target package")
@@ -138,7 +219,10 @@ async def get_target_package(product_id: str, format: str = Query("json", regex=
 
 
 @router.post("/executive-briefing", summary="Generate executive briefing")
-async def generate_executive_briefing(period: str = "monthly"):
+async def generate_executive_briefing(
+    period: str = Query("weekly", regex="^(daily|weekly|monthly)$"),
+    session = Depends(get_neo4j_session)
+):
     """
     Generate executive-level strategic briefing
     
@@ -149,14 +233,34 @@ async def generate_executive_briefing(period: str = "monthly"):
     - Strategic recommendations
     - Budget implications
     """
-    return {
-        "classification": "UNCLASSIFIED",
-        "product_type": "executive_briefing",
-        "period": period,
-        "status": "generated",
-        "product_id": "placeholder-exec-brief",
-        "message": "Executive briefing generation not yet implemented"
-    }
+    graph_mgr = KnowledgeGraphManager()
+    exec_gen = ExecutiveBriefingGenerator()
+    
+    # Query data from graph
+    assets_query = "MATCH (a:Asset) RETURN a LIMIT 1000"
+    assets_result = await graph_mgr.query_graph(session, assets_query, {})
+    assets = [dict(r["a"]) for r in assets_result]
+    
+    vulns_query = "MATCH (v:Vulnerability) RETURN v LIMIT 1000"
+    vulns_result = await graph_mgr.query_graph(session, vulns_query, {})
+    vulnerabilities = [dict(r["v"]) for r in vulns_result]
+    
+    threats_query = "MATCH (t:ThreatActor) RETURN t LIMIT 1000"
+    threats_result = await graph_mgr.query_graph(session, threats_query, {})
+    threats = [dict(r["t"]) for r in threats_result]
+    
+    # Generate briefing
+    briefing = await exec_gen.generate_executive_briefing(
+        period,
+        assets,
+        vulnerabilities,
+        threats,
+        None,  # incidents
+        None,  # risk_metrics
+        None   # previous_briefing
+    )
+    
+    return briefing
 
 
 @router.get("/executive-briefing/{product_id}", summary="Get executive briefing")
