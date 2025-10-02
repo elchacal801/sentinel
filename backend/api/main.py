@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from api.routes import assets, intelligence, analysis, products
+from api.routes import assets, intelligence, analysis, products, tasks
 from utils.database import init_databases, close_databases
 
 # Configure logging
@@ -68,6 +68,7 @@ app.include_router(assets.router, prefix="/api/v1/assets", tags=["Assets"])
 app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["Intelligence"])
 app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["Analysis"])
 app.include_router(products.router, prefix="/api/v1/products", tags=["Intelligence Products"])
+app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["Tasks"])
 
 
 @app.get("/")

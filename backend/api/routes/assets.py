@@ -83,14 +83,20 @@ async def discover_assets(request: AssetDiscoveryRequest):
     - Technology detection
     - Vulnerability scanning
     """
+    from workers.tasks import discover_assets_task
+    
+    # Initiate async task
+    task = discover_assets_task.delay(request.target, request.scan_type)
+    
     return {
         "classification": "UNCLASSIFIED",
         "status": "initiated",
         "target": request.target,
         "scan_type": request.scan_type,
-        "task_id": "placeholder-task-id",
-        "message": "Asset discovery will be implemented in Phase 2",
-        "estimated_time": "15-30 minutes"
+        "task_id": task.id,
+        "message": "Asset discovery initiated - check task status",
+        "estimated_time": "5-15 minutes",
+        "check_status_url": f"/api/v1/tasks/{task.id}"
     }
 
 

@@ -115,11 +115,14 @@ tmp/
 temp/
 *.tmp
 
-# ML Models
+# ML Models (trained model files, not Python model code)
 *.pkl
 *.h5
 *.model
-models/
+*.joblib
+*.onnx
+saved_models/
+trained_models/
 
 # Data files (optional - uncomment if not tracking data)
 # data/
