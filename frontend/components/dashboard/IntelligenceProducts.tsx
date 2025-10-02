@@ -16,50 +16,35 @@ interface Product {
 export default function IntelligenceProducts() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
   const [generating, setGenerating] = useState<string | null>(null)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProducts()
   }, [])
 
   const fetchProducts = async () => {
-    // Mock data
-    const mockProducts: Product[] = [
-      {
-        id: '1',
-        type: 'current_intelligence',
-        title: 'Daily Intelligence Brief - ' + new Date().toLocaleDateString(),
-        classification: 'UNCLASSIFIED//FOUO',
-        generated_at: new Date().toISOString(),
-        summary: 'Current threat landscape and key developments',
-        status: 'available'
-      },
-      {
-        id: '2',
-        type: 'indications_warning',
-        title: 'I&W Alert Summary',
-        classification: 'UNCLASSIFIED//FOUO',
-        generated_at: new Date(Date.now() - 3600000).toISOString(),
-        summary: '3 critical warnings require immediate attention',
-        status: 'available'
-      },
-      {
-        id: '3',
-        type: 'executive_briefing',
-        title: 'Weekly Executive Briefing',
-        classification: 'UNCLASSIFIED',
-        generated_at: new Date(Date.now() - 86400000).toISOString(),
-        summary: 'Strategic overview of security posture',
-        status: 'available'
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/products/recent')
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`)
       }
-    ]
-    setProducts(mockProducts)
-    setLoading(false)
+      const data = await response.json()
+      setProducts(data.products || [])
+      setError(null)
+      setLoading(false)
+    } catch (err) {
+      console.error('Failed to fetch products:', err)
+      setError('Unable to connect to backend API. Please ensure the backend service is running at http://localhost:8000')
+      setLoading(false)
+    }
   }
 
   const generateProduct = async (type: string) => {
     setGenerating(type)
+    setGenerateError(null)
     
     try {
       let url = ''
@@ -83,10 +68,14 @@ export default function IntelligenceProducts() {
       }
       
       const response = await fetch(url, options)
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`)
+      }
       const data = await response.json()
       setSelectedProduct(data)
-    } catch (error) {
-      console.error('Failed to generate product:', error)
+    } catch (err) {
+      console.error('Failed to generate product:', err)
+      setGenerateError('Failed to generate product. Ensure backend API is running and intelligence data is available.')
     } finally {
       setGenerating(null)
     }
@@ -142,8 +131,41 @@ export default function IntelligenceProducts() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">Backend API Unavailable</h3>
+          <p className="text-sm text-gray-400 mb-4">{error}</p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">Intelligence products require:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Backend API running</li>
+              <li>Complete intelligence collection (ASM, OSINT, CybInt)</li>
+              <li>Knowledge graph populated</li>
+              <li>Product generation services operational</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
+      {generateError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-semibold text-red-400 mb-1">Generation Failed</h4>
+              <p className="text-xs text-gray-400">{generateError}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Generate Products */}
       <div className="intel-card p-6">
         <h3 className="text-lg font-semibold text-gray-200 mb-4">Generate Intelligence Products</h3>

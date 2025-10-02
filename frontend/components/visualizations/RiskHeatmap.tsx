@@ -16,6 +16,7 @@ interface RiskData {
 export default function RiskHeatmap({ preview = false }: { preview?: boolean }) {
   const [riskData, setRiskData] = useState<RiskData[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<RiskData | null>(null)
 
   useEffect(() => {
@@ -23,21 +24,20 @@ export default function RiskHeatmap({ preview = false }: { preview?: boolean }) 
   }, [])
 
   const fetchRiskData = async () => {
-    // Mock data for demo
-    const mockData: RiskData[] = [
-      { asset_id: '1', asset_name: 'web-prod-01', criticality: 'critical', risk_score: 9.3, critical_vulns: 3, high_vulns: 5, category: 'web_server' },
-      { asset_id: '2', asset_name: 'api-gateway', criticality: 'high', risk_score: 8.7, critical_vulns: 2, high_vulns: 4, category: 'api' },
-      { asset_id: '3', asset_name: 'database-01', criticality: 'critical', risk_score: 8.1, critical_vulns: 1, high_vulns: 6, category: 'database' },
-      { asset_id: '4', asset_name: 'web-prod-02', criticality: 'high', risk_score: 7.8, critical_vulns: 1, high_vulns: 5, category: 'web_server' },
-      { asset_id: '5', asset_name: 'app-server-01', criticality: 'high', risk_score: 7.2, critical_vulns: 0, high_vulns: 7, category: 'app_server' },
-      { asset_id: '6', asset_name: 'file-server-01', criticality: 'medium', risk_score: 6.5, critical_vulns: 0, high_vulns: 4, category: 'file_server' },
-      { asset_id: '7', asset_name: 'vpn-gateway', criticality: 'high', risk_score: 6.2, critical_vulns: 0, high_vulns: 3, category: 'network' },
-      { asset_id: '8', asset_name: 'web-dev-01', criticality: 'medium', risk_score: 5.8, critical_vulns: 0, high_vulns: 2, category: 'web_server' },
-      { asset_id: '9', asset_name: 'test-server', criticality: 'low', risk_score: 4.5, critical_vulns: 0, high_vulns: 1, category: 'app_server' },
-      { asset_id: '10', asset_name: 'monitoring-01', criticality: 'medium', risk_score: 4.2, critical_vulns: 0, high_vulns: 2, category: 'monitoring' },
-    ]
-    setRiskData(mockData)
-    setLoading(false)
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/analysis/risk-scores')
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`)
+      }
+      const data = await response.json()
+      setRiskData(data.assets || [])
+      setError(null)
+      setLoading(false)
+    } catch (err) {
+      console.error('Failed to fetch risk data:', err)
+      setError('Unable to connect to backend API. Please ensure the backend service is running at http://localhost:8000')
+      setLoading(false)
+    }
   }
 
   const getRiskColor = (risk: number) => {
@@ -67,6 +67,48 @@ export default function RiskHeatmap({ preview = false }: { preview?: boolean }) 
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-cyber-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 font-mono text-sm">Calculating risk scores...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">Backend API Unavailable</h3>
+          <p className="text-sm text-gray-400 mb-4">{error}</p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">Risk analysis requires:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Backend API running</li>
+              <li>Assets discovered and cataloged</li>
+              <li>Vulnerability data collected</li>
+              <li>Analytics engine calculating risk scores</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (riskData.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <TrendingUp className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">No Risk Data Available</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            No assets with risk scores found. Run discovery and vulnerability scanning services.
+          </p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">Run these commands:</p>
+            <code className="block bg-black/50 p-2 rounded">
+              python -m services.asm.scanner<br/>
+              python -m services.cybint.vuln_scanner
+            </code>
+          </div>
         </div>
       </div>
     )

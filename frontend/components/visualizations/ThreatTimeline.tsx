@@ -17,6 +17,7 @@ interface ThreatEvent {
 export default function ThreatTimeline({ preview = false }: { preview?: boolean }) {
   const [events, setEvents] = useState<ThreatEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
 
   useEffect(() => {
@@ -24,55 +25,20 @@ export default function ThreatTimeline({ preview = false }: { preview?: boolean 
   }, [])
 
   const fetchThreatEvents = async () => {
-    // Mock data for demo
-    const mockEvents: ThreatEvent[] = [
-      {
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        type: 'active_exploitation',
-        severity: 'critical',
-        title: 'CVE-2024-12345 Under Active Exploitation',
-        description: 'APT99 observed exploiting critical vulnerability',
-        threat_actor: 'APT99',
-        cve_id: 'CVE-2024-12345',
-        affected_assets: 3
-      },
-      {
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-        type: 'new_vulnerability',
-        severity: 'high',
-        title: 'New Critical Vulnerability Discovered',
-        description: 'CVE-2024-67890 affects 5 production assets',
-        cve_id: 'CVE-2024-67890',
-        affected_assets: 5
-      },
-      {
-        timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-        type: 'targeted_activity',
-        severity: 'high',
-        title: 'Industry-Wide Targeting Campaign',
-        description: 'FIN7 targeting financial sector organizations',
-        threat_actor: 'FIN7',
-        affected_assets: 0
-      },
-      {
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        type: 'anomaly',
-        severity: 'medium',
-        title: 'Unusual Network Activity Detected',
-        description: 'Spike in outbound connections from web server',
-        affected_assets: 1
-      },
-      {
-        timestamp: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
-        type: 'threat_intel',
-        severity: 'medium',
-        title: 'New Malware Family Identified',
-        description: 'Backdoor.NewThreat targeting similar organizations',
-        affected_assets: 0
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/intelligence/threats/timeline')
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`)
       }
-    ]
-    setEvents(mockEvents)
-    setLoading(false)
+      const data = await response.json()
+      setEvents(data.events || [])
+      setError(null)
+      setLoading(false)
+    } catch (err) {
+      console.error('Failed to fetch threat events:', err)
+      setError('Unable to connect to backend API. Please ensure the backend service is running at http://localhost:8000')
+      setLoading(false)
+    }
   }
 
   const getSeverityColor = (severity: string) => {
@@ -128,6 +94,47 @@ export default function ThreatTimeline({ preview = false }: { preview?: boolean 
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-cyber-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 font-mono text-sm">Loading threat timeline...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">Backend API Unavailable</h3>
+          <p className="text-sm text-gray-400 mb-4">{error}</p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">Threat timeline requires:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Backend API running</li>
+              <li>Threat intelligence collected (CybInt services)</li>
+              <li>Event data stored in Neo4j</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <Clock className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">No Threat Events Found</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            No threat events have been collected yet. Run threat intelligence collection services to populate the timeline.
+          </p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">Run these commands:</p>
+            <code className="block bg-black/50 p-2 rounded">
+              python -m services.cybint.threat_collector<br/>
+              python -m services.osint.collector
+            </code>
+          </div>
         </div>
       </div>
     )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, TrendingUp, Eye, Shield } from 'lucide-react'
+import { AlertTriangle, TrendingUp, Eye, Shield, Target } from 'lucide-react'
 
 interface AttackPath {
   rank: number
@@ -19,6 +19,7 @@ interface AttackPath {
 export default function AttackPathViz() {
   const [paths, setPaths] = useState<AttackPath[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedPath, setSelectedPath] = useState<AttackPath | null>(null)
 
   useEffect(() => {
@@ -27,60 +28,20 @@ export default function AttackPathViz() {
 
   const fetchAttackPaths = async () => {
     try {
-      // Mock data for demo
-      const mockPaths: AttackPath[] = [
-        {
-          rank: 1,
-          likelihood: 0.85,
-          difficulty: 3.2,
-          detectability: 0.35,
-          impact: 9.0,
-          overall_risk: 9.3,
-          skill_required: 'medium',
-          estimated_time: '2-4 hours',
-          nodes: ['Internet', 'Web Server', 'App Server', 'Database'],
-          recommendations: [
-            'Implement network segmentation',
-            'Deploy WAF on web server',
-            'Enable MFA for database access'
-          ]
-        },
-        {
-          rank: 2,
-          likelihood: 0.72,
-          difficulty: 5.1,
-          detectability: 0.55,
-          impact: 8.5,
-          overall_risk: 8.1,
-          skill_required: 'high',
-          estimated_time: '1-2 days',
-          nodes: ['Internet', 'VPN', 'Internal Network', 'File Server'],
-          recommendations: [
-            'Patch VPN vulnerabilities',
-            'Implement zero-trust architecture'
-          ]
-        },
-        {
-          rank: 3,
-          likelihood: 0.60,
-          difficulty: 4.8,
-          detectability: 0.70,
-          impact: 7.0,
-          overall_risk: 7.2,
-          skill_required: 'high',
-          estimated_time: '3-5 days',
-          nodes: ['Phishing Email', 'User Workstation', 'Domain Controller'],
-          recommendations: [
-            'Security awareness training',
-            'Email filtering enhancement',
-            'Privileged access management'
-          ]
-        }
-      ]
-      setPaths(mockPaths)
+      const response = await fetch('http://localhost:8000/api/v1/analysis/attack-paths/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`)
+      }
+      const data = await response.json()
+      setPaths(data.attack_paths || [])
+      setError(null)
       setLoading(false)
-    } catch (error) {
-      console.error('Failed to fetch attack paths:', error)
+    } catch (err) {
+      console.error('Failed to fetch attack paths:', err)
+      setError('Unable to connect to backend API. Please ensure the backend service is running at http://localhost:8000')
       setLoading(false)
     }
   }
@@ -105,6 +66,40 @@ export default function AttackPathViz() {
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-cyber-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 font-mono text-sm">Analyzing attack paths...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">Backend API Unavailable</h3>
+          <p className="text-sm text-gray-400 mb-4">{error}</p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">Attack path analysis requires:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Backend API running</li>
+              <li>Knowledge graph populated with assets and vulnerabilities</li>
+              <li>Analytics engine operational</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (paths.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <Target className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">No Attack Paths Found</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            No attack paths have been analyzed yet. Ensure the knowledge graph contains assets and vulnerabilities.
+          </p>
         </div>
       </div>
     )

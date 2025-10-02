@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, ZoomIn, ZoomOut, Maximize2, Filter } from 'lucide-react'
+import { Search, ZoomIn, ZoomOut, Maximize2, Filter, AlertTriangle, Network } from 'lucide-react'
 
 interface Node {
   id: string
@@ -20,6 +20,7 @@ export default function KnowledgeGraphViz({ preview = false }: { preview?: boole
   const containerRef = useRef<HTMLDivElement>(null)
   const [graphData, setGraphData] = useState<{ nodes: Node[], edges: Edge[] }>({ nodes: [], edges: [] })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [filter, setFilter] = useState<string>('all')
 
@@ -36,13 +37,16 @@ export default function KnowledgeGraphViz({ preview = false }: { preview?: boole
   const fetchGraphData = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/v1/analysis/graph/visualize')
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`)
+      }
       const data = await response.json()
       setGraphData(data)
+      setError(null)
       setLoading(false)
-    } catch (error) {
-      console.error('Failed to fetch graph data:', error)
-      // Use mock data for demo
-      setGraphData(getMockGraphData())
+    } catch (err) {
+      console.error('Failed to fetch graph data:', err)
+      setError('Unable to connect to backend API. Please ensure the backend service is running at http://localhost:8000')
       setLoading(false)
     }
   }
@@ -171,25 +175,6 @@ export default function KnowledgeGraphViz({ preview = false }: { preview?: boole
     return colors[type as keyof typeof colors] || '#9ca3af'
   }
 
-  const getMockGraphData = () => ({
-    nodes: [
-      { id: '1', label: 'web-prod-01', type: 'asset' as const, properties: {} },
-      { id: '2', label: 'api-gateway', type: 'asset' as const, properties: {} },
-      { id: '3', label: 'database-01', type: 'asset' as const, properties: {} },
-      { id: '4', label: 'CVE-2024-1234', type: 'vulnerability' as const, properties: {} },
-      { id: '5', label: 'CVE-2024-5678', type: 'vulnerability' as const, properties: {} },
-      { id: '6', label: 'APT99', type: 'threat' as const, properties: {} },
-      { id: '7', label: '192.168.1.100', type: 'ioc' as const, properties: {} },
-    ],
-    edges: [
-      { source: '1', target: '4', relationship: 'HAS_VULNERABILITY' },
-      { source: '2', target: '5', relationship: 'HAS_VULNERABILITY' },
-      { source: '1', target: '2', relationship: 'CONNECTS_TO' },
-      { source: '2', target: '3', relationship: 'CONNECTS_TO' },
-      { source: '6', target: '4', relationship: 'EXPLOITS' },
-      { source: '6', target: '7', relationship: 'USES' },
-    ]
-  })
 
   if (loading) {
     return (
@@ -197,6 +182,48 @@ export default function KnowledgeGraphViz({ preview = false }: { preview?: boole
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-cyber-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 font-mono text-sm">Loading graph data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">Backend API Unavailable</h3>
+          <p className="text-sm text-gray-400 mb-4">{error}</p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">To populate the knowledge graph:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Start the backend API server</li>
+              <li>Run collection services (ASM, OSINT, CybInt)</li>
+              <li>Ensure Neo4j is running and populated</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (graphData.nodes.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <Network className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-200 mb-2">No Graph Data Available</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            The knowledge graph is empty. Run collection services to populate it with intelligence data.
+          </p>
+          <div className="text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded p-3 text-left">
+            <p className="mb-2">Run these commands:</p>
+            <code className="block bg-black/50 p-2 rounded">
+              python -m services.asm.scanner<br/>
+              python -m services.osint.collector<br/>
+              python -m services.cybint.vuln_scanner
+            </code>
+          </div>
         </div>
       </div>
     )
