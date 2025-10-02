@@ -14,6 +14,8 @@ from services.asm.discovery import AssetDiscovery
 from services.asm.scanner import PortScanner, ServiceFingerprinter
 from services.osint.collectors import CTLogCollector, GitHubAdvisoryCollector
 from services.cybint.scanner import VulnerabilityScanner, CVEEnricher
+from utils.graph import KnowledgeGraphManager
+from utils.database import neo4j_driver
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,128 @@ def run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
+
+
+# Storage Helper Functions
+async def store_assets_in_graph(assets: List[Dict[str, Any]], root_domain: str) -> int:
+    """Store discovered assets in Neo4j knowledge graph"""
+    stored = 0
+    
+    async with neo4j_driver.session() as session:
+        graph_mgr = KnowledgeGraphManager()
+        
+        # Create root domain node
+        root_asset_id = f"asset-domain-{root_domain.replace('.', '-')}"
+        await graph_mgr.create_asset(session, {
+            "id": root_asset_id,
+            "type": "domain",
+            "value": root_domain,
+            "criticality": "high",
+            "status": "active",
+            "discovered": datetime.now().isoformat(),
+            "last_seen": datetime.now().isoformat(),
+        })
+        
+        # Create subdomain nodes and relationships
+        for asset in assets:
+            asset_id = f"asset-subdomain-{asset['value'].replace('.', '-')}"
+            
+            # Create asset node
+            await graph_mgr.create_asset(session, {
+                "id": asset_id,
+                "type": "subdomain",
+                "value": asset["value"],
+                "criticality": "medium",
+                "status": "active",
+                "discovered": asset["discovered_at"],
+                "last_seen": asset["discovered_at"],
+                "ports": [],
+                "services": [],
+                "technologies": [],
+                "tags": [asset["discovery_method"]],
+            })
+            
+            # Create relationship to parent domain
+            await graph_mgr.create_relationship(
+                session,
+                from_id=asset_id,
+                from_type="Asset",
+                to_id=root_asset_id,
+                to_type="Asset",
+                relationship="PART_OF",
+                properties={"discovered_at": asset["discovered_at"]}
+            )
+            
+            # Create IP address nodes if available
+            for ip in asset.get("ip_addresses", []):
+                ip_id = f"asset-ip-{ip.replace('.', '-')}"
+                await graph_mgr.create_asset(session, {
+                    "id": ip_id,
+                    "type": "ip",
+                    "value": ip,
+                    "criticality": "medium",
+                    "status": "active",
+                    "discovered": asset["discovered_at"],
+                    "last_seen": asset["discovered_at"],
+                })
+                
+                # Link subdomain to IP
+                await graph_mgr.create_relationship(
+                    session,
+                    from_id=asset_id,
+                    from_type="Asset",
+                    to_id=ip_id,
+                    to_type="Asset",
+                    relationship="RESOLVES_TO",
+                    properties={"discovered_at": asset["discovered_at"]}
+                )
+            
+            stored += 1
+    
+    logger.info(f"Stored {stored} assets in knowledge graph")
+    return stored
+
+
+async def store_vulnerabilities_in_graph(asset_id: str, vulnerabilities: List[Dict[str, Any]]) -> int:
+    """Store vulnerabilities and link to assets"""
+    stored = 0
+    
+    async with neo4j_driver.session() as session:
+        graph_mgr = KnowledgeGraphManager()
+        
+        for vuln in vulnerabilities:
+            # Create vulnerability node
+            vuln_id = vuln.get("id", f"vuln-{uuid.uuid4().hex[:8]}")
+            
+            await graph_mgr.create_vulnerability(session, {
+                "id": vuln_id,
+                "title": vuln.get("title", "Unknown Vulnerability"),
+                "description": vuln.get("description", ""),
+                "cvss_score": vuln.get("cvss_score"),
+                "severity": vuln.get("severity", "unknown"),
+                "exploit_available": vuln.get("exploit_available", False),
+                "patch_available": vuln.get("patch_available", False),
+                "published_date": vuln.get("detected_at", datetime.now().isoformat()),
+            })
+            
+            # Link to asset
+            await graph_mgr.create_relationship(
+                session,
+                from_id=asset_id,
+                from_type="Asset",
+                to_id=vuln_id,
+                to_type="Vulnerability",
+                relationship="HAS_VULNERABILITY",
+                properties={
+                    "confidence": vuln.get("confidence", 0.8),
+                    "detected_at": vuln.get("detected_at", datetime.now().isoformat())
+                }
+            )
+            
+            stored += 1
+    
+    logger.info(f"Stored {stored} vulnerabilities in knowledge graph")
+    return stored
 
 
 @celery_app.task(bind=True, name="workers.tasks.discover_assets_task")
@@ -60,8 +184,8 @@ def discover_assets_task(self, target: str, method: str = "passive") -> Dict[str
             meta={"status": "storing_results", "assets_found": len(assets)}
         )
         
-        # TODO: Store assets in Neo4j knowledge graph
-        # For now, just return the results
+        # Store assets in Neo4j knowledge graph
+        stored_count = run_async(store_assets_in_graph(assets, target))
         
         result = {
             "task_id": task_id,
@@ -253,7 +377,12 @@ def scan_vulnerabilities_task(
                     if vuln["id"] in enriched_cves:
                         vuln["enriched_data"] = enriched_cves[vuln["id"]]
         
-        # TODO: Store in knowledge graph
+        # Store vulnerabilities in knowledge graph if asset_id provided
+        if vulnerabilities and service_info.get("asset_id"):
+            stored = run_async(
+                store_vulnerabilities_in_graph(service_info["asset_id"], vulnerabilities)
+            )
+            logger.info(f"Stored {stored} vulnerabilities for asset {service_info['asset_id']}")
         
         result = {
             "task_id": task_id,

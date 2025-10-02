@@ -2,10 +2,13 @@
 Analysis API Routes
 Endpoints for intelligence analysis and risk assessment
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+
+from utils.database import get_neo4j_session
+from utils.graph import KnowledgeGraphManager
 
 router = APIRouter()
 
@@ -224,17 +227,54 @@ async def query_knowledge_graph(query: str = Query(..., description="Cypher quer
 
 
 @router.get("/graph/visualize", summary="Get graph visualization data")
-async def get_graph_visualization(entity_id: str, depth: int = 2):
+async def get_graph_visualization(
+    entity_id: str,
+    depth: int = Query(2, ge=1, le=5),
+    session = Depends(get_neo4j_session)
+):
     """
     Get graph data for visualization
     
     **Returns:** Nodes and edges for interactive graph visualization
     """
+    graph_mgr = KnowledgeGraphManager()
+    
+    # Get entity and its neighborhood
+    context = await graph_mgr.get_entity_context(session, entity_id, depth)
+    
+    if not context:
+        return {
+            "classification": "UNCLASSIFIED",
+            "entity_id": entity_id,
+            "depth": depth,
+            "nodes": [],
+            "edges": [],
+            "message": "Entity not found"
+        }
+    
     return {
         "classification": "UNCLASSIFIED",
         "entity_id": entity_id,
         "depth": depth,
-        "nodes": [],
-        "edges": [],
-        "message": "Graph visualization not yet implemented"
+        "nodes": context.get("nodes", []),
+        "edges": context.get("edges", []),
+        "node_count": len(context.get("nodes", [])),
+        "edge_count": len(context.get("edges", [])),
+    }
+
+
+@router.get("/graph/stats", summary="Get knowledge graph statistics")
+async def get_graph_stats(session = Depends(get_neo4j_session)):
+    """
+    Get statistics about the knowledge graph
+    
+    **Returns:** Counts of entities, relationships, and other metrics
+    """
+    graph_mgr = KnowledgeGraphManager()
+    stats = await graph_mgr.get_graph_stats(session)
+    
+    return {
+        "classification": "UNCLASSIFIED",
+        "statistics": stats,
+        "timestamp": datetime.now().isoformat()
     }

@@ -243,6 +243,48 @@ class KnowledgeGraphManager:
         return records
     
     @staticmethod
+    async def get_entity_context(session: AsyncSession, entity_id: str, depth: int = 2) -> Optional[Dict[str, Any]]:
+        """
+        Get an entity and its surrounding context (neighborhood) in the graph
+        
+        Returns nodes and edges for visualization
+        """
+        query = """
+        MATCH path = (center)-[*1..$depth]-(connected)
+        WHERE center.id = $entity_id
+        WITH center, collect(DISTINCT connected) as neighbors, collect(DISTINCT path) as paths
+        RETURN center,
+               neighbors,
+               [p IN paths | relationships(p)] as all_relationships
+        """
+        
+        result = await session.run(query, {"entity_id": entity_id, "depth": depth})
+        record = await result.single()
+        
+        if not record:
+            return None
+        
+        # Build nodes list
+        nodes = [dict(record["center"])]
+        nodes.extend([dict(n) for n in record["neighbors"] if n])
+        
+        # Build edges list
+        edges = []
+        for rel_list in record["all_relationships"]:
+            for rel in rel_list:
+                edges.append({
+                    "from": rel.start_node.get("id"),
+                    "to": rel.end_node.get("id"),
+                    "type": rel.type,
+                    "properties": dict(rel)
+                })
+        
+        return {
+            "nodes": nodes,
+            "edges": edges
+        }
+    
+    @staticmethod
     async def get_graph_stats(session: AsyncSession) -> Dict[str, int]:
         """Get statistics about the knowledge graph"""
         query = """
