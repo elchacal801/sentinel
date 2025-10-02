@@ -9,6 +9,9 @@ from datetime import datetime
 
 from utils.database import get_neo4j_session
 from utils.graph import KnowledgeGraphManager
+from services.analytics.risk_engine import RiskScoringEngine
+from services.analytics.attack_paths import AttackPathAnalyzer
+from services.analytics.predictor import PredictiveAnalytics
 
 router = APIRouter()
 
@@ -36,7 +39,9 @@ class AnalyticalAssessment(BaseModel):
 @router.get("/risk-scores", summary="Get risk scores")
 async def get_risk_scores(
     entity_type: Optional[str] = None,
-    min_score: float = Query(0.0, ge=0.0, le=10.0)
+    min_score: float = Query(0.0, ge=0.0, le=10.0),
+    limit: int = Query(100, le=500),
+    session = Depends(get_neo4j_session)
 ):
     """
     Get risk scores for assets, vulnerabilities, or threats
@@ -48,21 +53,43 @@ async def get_risk_scores(
     - Threat actor interest
     - Detection capability
     """
+    graph_mgr = KnowledgeGraphManager()
+    risk_engine = RiskScoringEngine()
+    
+    # Get assets with vulnerabilities from graph
+    query = """
+    MATCH (a:Asset)
+    OPTIONAL MATCH (a)-[:HAS_VULNERABILITY]->(v:Vulnerability)
+    RETURN a, collect(v) as vulnerabilities
+    LIMIT $limit
+    """
+    
+    results = await graph_mgr.query_graph(session, query, {"limit": limit})
+    
+    # Calculate risk for each asset
+    risk_scores = []
+    for record in results:
+        asset = dict(record["a"])
+        vulns = [dict(v) for v in record["vulnerabilities"] if v]
+        
+        if vulns:
+            # Calculate asset risk profile
+            risk_profile = await risk_engine.calculate_asset_risk_profile(
+                asset, vulns
+            )
+            
+            if risk_profile["overall_risk"] >= min_score:
+                risk_scores.append(risk_profile)
+    
+    # Sort by risk score descending
+    risk_scores.sort(key=lambda x: x["overall_risk"], reverse=True)
+    
     return {
         "classification": "UNCLASSIFIED",
-        "scores": [],
-        "message": "Risk scoring not yet implemented"
-    }
-
-
-@router.get("/risk-scores/{entity_id}", summary="Get entity risk score")
-async def get_entity_risk_score(entity_id: str):
-    """Get detailed risk score for a specific entity"""
-    return {
-        "classification": "UNCLASSIFIED",
-        "entity_id": entity_id,
-        "risk_score": None,
-        "message": "Risk scoring not yet implemented"
+        "entity_type": entity_type or "all",
+        "risk_scores": risk_scores,
+        "total": len(risk_scores),
+        "calculated_at": datetime.now().isoformat()
     }
 
 
@@ -98,13 +125,15 @@ async def list_attack_paths():
     """
     return {
         "classification": "UNCLASSIFIED//FOUO",
-        "attack_paths": [],
-        "message": "Attack path modeling not yet implemented"
     }
 
 
 @router.post("/attack-paths/generate", summary="Generate attack paths")
-async def generate_attack_paths(target_asset_id: str):
+async def generate_attack_paths(
+    target_asset_id: str,
+    max_depth: int = Query(5, ge=1, le=10),
+    session = Depends(get_neo4j_session)
+):
     """
     Generate attack paths to a target asset
     
@@ -114,12 +143,42 @@ async def generate_attack_paths(target_asset_id: str):
     - Detectability scoring
     - Mitigation recommendations
     """
+    graph_mgr = KnowledgeGraphManager()
+    path_analyzer = AttackPathAnalyzer()
+    
+    # Find paths in graph
+    paths = await graph_mgr.find_attack_paths(session, target_asset_id, max_depth)
+    
+    # Analyze each path
+    analyzed_paths = []
+    for path in paths:
+        # Get vulnerabilities in the path
+        vulns_in_path = []
+        for node in path.get("nodes", []):
+            if node.get("type") == "vulnerability":
+                vulns_in_path.append(node)
+        
+        analysis = path_analyzer.analyze_path(
+            path.get("nodes", []),
+            vulns_in_path
+        )
+        analyzed_paths.append(analysis)
+    
+    # Rank paths by risk
+    ranked_paths = await path_analyzer.rank_attack_paths(analyzed_paths)
+    
+    # Identify critical chokepoints
+    critical_nodes = await path_analyzer.identify_critical_nodes(ranked_paths)
+    
     return {
         "classification": "UNCLASSIFIED//FOUO",
-        "status": "initiated",
-        "target": target_asset_id,
-        "task_id": "placeholder-attack-path",
-        "message": "Attack path generation not yet implemented"
+        "target_asset_id": target_asset_id,
+        "max_depth": max_depth,
+        "attack_paths": ranked_paths[:20],  # Top 20
+        "path_count": len(ranked_paths),
+        "critical_nodes": critical_nodes[:10],  # Top 10
+        "analysis": f"Found {len(ranked_paths)} potential attack paths",
+        "generated_at": datetime.now().isoformat()
     }
 
 
@@ -172,7 +231,10 @@ async def correlate_threats():
 
 
 @router.get("/predictions", summary="Get predictive intelligence")
-async def get_predictions():
+async def get_predictions(
+    asset_id: Optional[str] = None,
+    session = Depends(get_neo4j_session)
+):
     """
     Get predictive intelligence assessments
     
@@ -182,10 +244,35 @@ async def get_predictions():
     - Threat actor targeting
     - Vulnerability weaponization
     """
+    graph_mgr = KnowledgeGraphManager()
+    predictor = PredictiveAnalytics()
+    
+    predictions = []
+    
+    if asset_id:
+        # Get specific asset prediction
+        asset = await graph_mgr.get_asset(session, asset_id)
+        if asset:
+            # Get threat intel
+            threat_query = """
+            MATCH (t:ThreatActor)-[r]->(a:Asset {id: $asset_id})
+            RETURN t, type(r) as relationship
+            LIMIT 10
+            """
+            threat_intel = await graph_mgr.query_graph(session, threat_query, {"asset_id": asset_id})
+            
+            prediction = await predictor.predict_attack_likelihood(
+                asset["asset"],
+                [dict(t["t"]) for t in threat_intel],
+                []  # historical attacks - would need to query
+            )
+            predictions.append(prediction)
+    
     return {
         "classification": "UNCLASSIFIED//FOUO",
-        "predictions": [],
-        "message": "Predictive analytics not yet implemented"
+        "predictions": predictions,
+        "prediction_count": len(predictions),
+        "generated_at": datetime.now().isoformat()
     }
 
 
