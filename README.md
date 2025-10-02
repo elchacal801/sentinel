@@ -19,10 +19,10 @@
 
 ---
 
-## Current Status: Phase 2 Complete ✅
+## Current Status: Phase 3 Complete ✅
 
-**Latest Release:** Phase 2 - Core Collection Services  
-**Status:** Operational intelligence collection  
+**Latest Release:** Phase 3 - Knowledge Graph & Fusion  
+**Status:** Operational intelligence fusion with persistent graph storage  
 **Last Updated:** 2025-10-01
 
 **What's Working Now:**
@@ -32,7 +32,10 @@
 - ✅ GitHub security advisory collection
 - ✅ Vulnerability detection and CVE enrichment
 - ✅ Async task execution with Celery
-- ✅ Real intelligence collection (not mocks)
+- ✅ **Neo4j knowledge graph persistence** ⬅️ NEW
+- ✅ **Multi-INT correlation and fusion** ⬅️ NEW
+- ✅ **IC-standard confidence scoring** ⬅️ NEW
+- ✅ **Graph queries and visualization** ⬅️ NEW
 
 **Try It:**
 ```bash
@@ -42,10 +45,19 @@ docker-compose up -d
 # Start API
 cd backend && python api/main.py
 
-# Discover assets
+# Start Celery worker (required for collection)
+cd backend && celery -A workers.celery_app worker --loglevel=info
+
+# Discover assets (stores in Neo4j automatically)
 curl -X POST http://localhost:8000/api/v1/assets/discover \
   -H "Content-Type: application/json" \
   -d '{"target": "example.com", "scan_type": "passive"}'
+
+# Query discovered assets from graph
+curl http://localhost:8000/api/v1/assets/
+
+# Get graph statistics
+curl http://localhost:8000/api/v1/analysis/graph/stats
 ```
 
 ---
@@ -270,22 +282,32 @@ sentinel/
 │   ├── api/                   # API layer
 │   │   ├── main.py           # FastAPI application
 │   │   └── routes/           # API endpoints
-│   │       ├── assets.py     # Asset management routes
+│   │       ├── assets.py     # Asset management (Neo4j queries) ✅
 │   │       ├── intelligence.py # Intelligence collection routes
-│   │       ├── analysis.py   # Analysis engine routes
-│   │       └── products.py   # Intelligence products routes
+│   │       ├── analysis.py   # Analysis engine (graph viz) ✅
+│   │       ├── products.py   # Intelligence products routes
+│   │       └── tasks.py      # Task status endpoints ✅
 │   ├── services/              # Intelligence services
-│   │   ├── asm/              # Attack Surface Management
-│   │   ├── osint/            # OSINT Collection
-│   │   ├── sigint/           # SIGINT Analysis
-│   │   ├── cybint/           # CYBINT Scanning
-│   │   ├── fusion/           # Multi-INT Fusion
-│   │   ├── analytics/        # Analytics Engine
-│   │   └── products/         # Product Generation
-│   ├── workers/               # Celery workers
-│   ├── models/                # Data models
+│   │   ├── asm/              # Attack Surface Management ✅
+│   │   │   ├── discovery.py  # Subdomain enumeration
+│   │   │   └── scanner.py    # Port scanning, fingerprinting
+│   │   ├── osint/            # OSINT Collection ✅
+│   │   │   └── collectors.py # CT logs, GitHub advisories
+│   │   ├── sigint/           # SIGINT Analysis (placeholder)
+│   │   ├── cybint/           # CYBINT Scanning ✅
+│   │   │   └── scanner.py    # Vuln detection, CVE enrichment
+│   │   ├── fusion/           # Multi-INT Fusion ✅ NEW
+│   │   │   └── correlator.py # Intelligence correlation, confidence scoring
+│   │   ├── analytics/        # Analytics Engine (placeholder)
+│   │   └── products/         # Product Generation (placeholder)
+│   ├── workers/               # Celery workers ✅
+│   │   ├── celery_app.py     # Celery configuration
+│   │   └── tasks.py          # Async tasks (with Neo4j storage)
+│   ├── models/                # Data models ✅
+│   │   └── entities.py       # Pydantic models (Asset, Vuln, IOC, etc.)
 │   ├── utils/                 # Utilities
-│   │   └── database.py       # Database connections
+│   │   ├── database.py       # Database connections ✅
+│   │   └── graph.py          # Neo4j graph manager ✅
 │   └── tests/                 # Test suite
 ├── frontend/                  # Next.js frontend
 │   ├── app/                   # Next.js App Router
@@ -348,9 +370,46 @@ Once the backend is running, access:
 - `GET /api/v1/tasks/{task_id}` - Check async task status
 - `DELETE /api/v1/tasks/{task_id}` - Cancel running task
 
+#### Graph & Fusion (NEW in Phase 3)
+- `GET /api/v1/analysis/graph/visualize` - Get graph visualization data (nodes/edges)
+- `GET /api/v1/analysis/graph/stats` - Knowledge graph statistics
+- `GET /api/v1/assets/` - Now returns real data from Neo4j (with filtering)
+- `GET /api/v1/assets/{id}` - Returns asset with vulnerabilities and threats from graph
+- `GET /api/v1/assets/{id}/attack-paths` - Real graph traversal for attack paths
+
 ---
 
 ## Intelligence Operations
+
+### Multi-INT Fusion (Phase 3)
+
+Sentinel correlates intelligence from multiple sources using IC-standard methodologies:
+
+**Correlation Types:**
+- **IOC Correlation** - Groups same indicators across sources with confidence scoring
+- **Vulnerability-Threat Correlation** - Links CVEs to active exploitation intelligence
+- **Temporal Correlation** - Identifies events within time windows for campaign detection
+- **Spatial Correlation** - Geographic clustering of entities and infrastructure
+- **Campaign Identification** - Detects coordinated threat activity from patterns
+
+**Confidence Scoring:**
+- Follows Intelligence Community standards (High/Moderate/Low/Minimal)
+- Multi-source corroboration increases confidence
+- Source diversity adds weight (OSINT + SIGINT + CYBINT = higher confidence)
+- Temporal decay accounts for intelligence age
+
+**Example Fusion:**
+```
+Input: 
+- OSINT: IOC "1.2.3.4" linked to APT99
+- CYBINT: Same IP in vulnerability scan
+- SIGINT: C2 beaconing detected from same IP
+
+Output:
+- Confidence: 0.92 (HIGH)
+- Assessment: "Coordinated APT99 infrastructure"
+- Recommendation: "Immediate blocking and investigation"
+```
 
 ### Intelligence Cycle Implementation
 
@@ -418,12 +477,15 @@ Sentinel follows the six-phase intelligence cycle:
 - [x] Pydantic data models
 - [x] Neo4j graph schema
 
-### Phase 3: Knowledge Graph & Fusion (Weeks 5-6) ⬅️ CURRENT
-- [ ] Neo4j schema implementation
-- [ ] Entity relationship mapping
-- [ ] Multi-INT correlation engine
-- [ ] Confidence scoring
-- [ ] Temporal correlation
+### Phase 3: Knowledge Graph & Fusion ✅ COMPLETE
+- [x] Neo4j schema implementation
+- [x] Entity relationship mapping (assets, vulnerabilities, IPs)
+- [x] Multi-INT correlation engine (IOC, vulnerability-threat, temporal, spatial)
+- [x] Confidence scoring (IC-standard with high/moderate/low labels)
+- [x] Temporal correlation (event clustering in time windows)
+- [x] Campaign identification algorithms
+- [x] Graph visualization endpoints
+- [x] Workers persist to Neo4j automatically
 
 ### Phase 4: Analytics & Intelligence (Weeks 7-8)
 - [ ] Risk scoring engine
