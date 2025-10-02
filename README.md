@@ -19,10 +19,10 @@
 
 ---
 
-## Current Status: Phase 3 Complete ✅
+## Current Status: Phase 4 Complete ✅
 
-**Latest Release:** Phase 3 - Knowledge Graph & Fusion  
-**Status:** Operational intelligence fusion with persistent graph storage  
+**Latest Release:** Phase 4 - Analytics & Intelligence  
+**Status:** Advanced analytics with predictive intelligence  
 **Last Updated:** 2025-10-01
 
 **What's Working Now:**
@@ -32,10 +32,14 @@
 - ✅ GitHub security advisory collection
 - ✅ Vulnerability detection and CVE enrichment
 - ✅ Async task execution with Celery
-- ✅ **Neo4j knowledge graph persistence** ⬅️ NEW
-- ✅ **Multi-INT correlation and fusion** ⬅️ NEW
-- ✅ **IC-standard confidence scoring** ⬅️ NEW
-- ✅ **Graph queries and visualization** ⬅️ NEW
+- ✅ Neo4j knowledge graph persistence
+- ✅ Multi-INT correlation and fusion
+- ✅ IC-standard confidence scoring
+- ✅ Graph queries and visualization
+- ✅ **Intelligence-informed risk scoring** ⬅️ NEW
+- ✅ **Attack path modeling with likelihood** ⬅️ NEW
+- ✅ **Predictive analytics and forecasting** ⬅️ NEW
+- ✅ **Anomaly detection** ⬅️ NEW
 
 **Try It:**
 ```bash
@@ -296,9 +300,12 @@ sentinel/
 │   │   ├── sigint/           # SIGINT Analysis (placeholder)
 │   │   ├── cybint/           # CYBINT Scanning ✅
 │   │   │   └── scanner.py    # Vuln detection, CVE enrichment
-│   │   ├── fusion/           # Multi-INT Fusion ✅ NEW
+│   │   ├── fusion/           # Multi-INT Fusion ✅
 │   │   │   └── correlator.py # Intelligence correlation, confidence scoring
-│   │   ├── analytics/        # Analytics Engine (placeholder)
+│   │   ├── analytics/        # Analytics Engine ✅ NEW
+│   │   │   ├── risk_engine.py # Intelligence-informed risk scoring
+│   │   │   ├── attack_paths.py # Attack path modeling
+│   │   │   └── predictor.py  # Predictive analytics
 │   │   └── products/         # Product Generation (placeholder)
 │   ├── workers/               # Celery workers ✅
 │   │   ├── celery_app.py     # Celery configuration
@@ -377,6 +384,12 @@ Once the backend is running, access:
 - `GET /api/v1/assets/{id}` - Returns asset with vulnerabilities and threats from graph
 - `GET /api/v1/assets/{id}/attack-paths` - Real graph traversal for attack paths
 
+#### Analytics & Intelligence (NEW in Phase 4)
+- `GET /api/v1/analysis/risk-scores` - Intelligence-informed risk scores (beyond CVSS)
+- `POST /api/v1/analysis/attack-paths/generate` - Generate attack paths with likelihood
+- `GET /api/v1/analysis/predictions` - Predictive intelligence and forecasting
+- `GET /api/v1/analysis/anomalies` - Statistical anomaly detection
+
 ---
 
 ## Intelligence Operations
@@ -410,6 +423,39 @@ Output:
 - Assessment: "Coordinated APT99 infrastructure"
 - Recommendation: "Immediate blocking and investigation"
 ```
+
+### Advanced Analytics (Phase 4)
+
+Sentinel provides intelligence-informed risk scoring and predictive analytics:
+
+**Intelligence-Informed Risk Scoring:**
+```
+Risk = CVSS × Asset_Criticality × Exploit_Factor × 
+       Threat_Intel × Exposure × Age × Active_Targeting
+```
+
+Goes beyond CVSS by incorporating:
+- **Asset Criticality:** Critical assets weighted 1.5x
+- **Exploit Availability:** Weaponized = 2.0x, PoC = 1.5x
+- **Threat Intelligence:** Active exploitation = 2.5x
+- **Exposure:** Internet-facing = 1.5x
+- **Age Factor:** Recent vulns = 1.4x (limited patches)
+- **Active Targeting:** Org-specific targeting = 2.0x
+
+**Attack Path Modeling:**
+- Calculates path likelihood (success probability)
+- Assesses difficulty (skill/resources required)
+- Determines detectability (chance of detection)
+- Evaluates impact (damage if successful)
+- Identifies critical chokepoints (nodes in multiple paths)
+- Provides mitigation recommendations
+
+**Predictive Analytics:**
+- Vulnerability trend forecasting
+- Attack likelihood prediction
+- Emerging threat identification
+- Risk trajectory analysis
+- Anomaly detection (statistical outliers)
 
 ### Intelligence Cycle Implementation
 
@@ -487,12 +533,12 @@ Sentinel follows the six-phase intelligence cycle:
 - [x] Graph visualization endpoints
 - [x] Workers persist to Neo4j automatically
 
-### Phase 4: Analytics & Intelligence (Weeks 7-8)
-- [ ] Risk scoring engine
-- [ ] Attack path modeling
-- [ ] Threat correlation
-- [ ] Predictive analytics
-- [ ] Anomaly detection
+### Phase 4: Analytics & Intelligence ✅ COMPLETE
+- [x] Risk scoring engine (intelligence-informed, beyond CVSS)
+- [x] Attack path modeling (likelihood, detectability, impact)
+- [x] Threat correlation (integrated in fusion service)
+- [x] Predictive analytics (forecasting, trend analysis)
+- [x] Anomaly detection (statistical outlier detection)
 
 ### Phase 5: Intelligence Products (Weeks 9-10)
 - [ ] Current intelligence generator
