@@ -19,6 +19,37 @@
 
 ---
 
+## Current Status: Phase 2 Complete ✅
+
+**Latest Release:** Phase 2 - Core Collection Services  
+**Status:** Operational intelligence collection  
+**Last Updated:** 2025-10-01
+
+**What's Working Now:**
+- ✅ Subdomain discovery (passive + active methods)
+- ✅ Port scanning and service fingerprinting
+- ✅ Certificate Transparency log monitoring
+- ✅ GitHub security advisory collection
+- ✅ Vulnerability detection and CVE enrichment
+- ✅ Async task execution with Celery
+- ✅ Real intelligence collection (not mocks)
+
+**Try It:**
+```bash
+# Start services
+docker-compose up -d
+
+# Start API
+cd backend && python api/main.py
+
+# Discover assets
+curl -X POST http://localhost:8000/api/v1/assets/discover \
+  -H "Content-Type: application/json" \
+  -d '{"target": "example.com", "scan_type": "passive"}'
+```
+
+---
+
 ## Table of Contents
 
 - [Architecture](#architecture)
@@ -159,7 +190,17 @@ Backend API will be available at: `http://localhost:8000`
 
 API Documentation: `http://localhost:8000/api/docs`
 
-### 4. Start Frontend
+### 4. Start Celery Worker (NEW in Phase 2)
+
+```bash
+# In a new terminal, from backend directory
+cd backend
+celery -A workers.celery_app worker --loglevel=info
+```
+
+**Required for:** Asset discovery, port scanning, OSINT collection, vulnerability scanning
+
+### 5. Start Frontend
 
 ```bash
 cd frontend
@@ -303,6 +344,10 @@ Once the backend is running, access:
 - `POST /api/v1/products/target-package/{asset_id}` - Generate target package
 - `POST /api/v1/products/executive-briefing` - Generate executive briefing
 
+#### Tasks (NEW in Phase 2)
+- `GET /api/v1/tasks/{task_id}` - Check async task status
+- `DELETE /api/v1/tasks/{task_id}` - Cancel running task
+
 ---
 
 ## Intelligence Operations
@@ -348,7 +393,7 @@ Sentinel follows the six-phase intelligence cycle:
 
 ## Roadmap
 
-### Phase 1: Infrastructure Setup ✅ (Current)
+### Phase 1: Infrastructure Setup ✅ COMPLETE
 - [x] Project structure
 - [x] Docker services (PostgreSQL, Neo4j, Redis, Elasticsearch, Kafka, TimescaleDB, MinIO)
 - [x] FastAPI backend foundation
@@ -356,20 +401,24 @@ Sentinel follows the six-phase intelligence cycle:
 - [x] API endpoint stubs
 - [x] Intelligence-themed UI
 
-### Phase 2: Core Collection (Weeks 3-4)
-- [ ] Attack Surface Management (ASM)
-  - [ ] Subdomain enumeration
-  - [ ] Port scanning
-  - [ ] Service fingerprinting
-- [ ] OSINT Collection
-  - [ ] Certificate Transparency logs
-  - [ ] GitHub security advisories
-  - [ ] Paste site monitoring
-- [ ] CYBINT Scanning
-  - [ ] Nuclei integration
-  - [ ] CVE enrichment
+### Phase 2: Core Collection ✅ COMPLETE
+- [x] Attack Surface Management (ASM)
+  - [x] Subdomain enumeration (passive CT logs + active DNS)
+  - [x] Port scanning (async, concurrent)
+  - [x] Service fingerprinting (HTTP, banner grabbing)
+- [x] OSINT Collection
+  - [x] Certificate Transparency logs (crt.sh integration)
+  - [x] GitHub security advisories (API integration)
+  - [x] Threat feed framework (Abuse.ch)
+- [x] CYBINT Scanning
+  - [x] Vulnerability detection engine
+  - [x] CVE enrichment (NVD API)
+  - [x] Security header analysis
+- [x] Celery workers for async collection
+- [x] Pydantic data models
+- [x] Neo4j graph schema
 
-### Phase 3: Knowledge Graph & Fusion (Weeks 5-6)
+### Phase 3: Knowledge Graph & Fusion (Weeks 5-6) ⬅️ CURRENT
 - [ ] Neo4j schema implementation
 - [ ] Entity relationship mapping
 - [ ] Multi-INT correlation engine
