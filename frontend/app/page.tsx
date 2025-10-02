@@ -1,7 +1,8 @@
 'use client'
 
-import { Shield, Activity, Database, Network, Target, AlertTriangle, TrendingUp, Eye } from 'lucide-react'
+import { Shield, Activity, Database, Network, Target, AlertTriangle, TrendingUp, Eye, ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 
 export default function HomePage() {
   const [systemStatus, setSystemStatus] = useState('INITIALIZING')
@@ -242,18 +243,18 @@ export default function HomePage() {
             <a href="/api/docs" target="_blank" className="intel-card p-6 block group cursor-pointer">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-white font-semibold">API Documentation</h3>
-                <span className="text-cyber-primary opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+                <ArrowRight className="w-5 h-5 text-cyber-primary opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <p className="text-gray-400 text-sm">Interactive API documentation and testing</p>
             </a>
             
-            <div className="intel-card p-6 opacity-50">
+            <Link href="/dashboard" className="intel-card p-6 block group cursor-pointer">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-white font-semibold">Intelligence Dashboard</h3>
-                <span className="text-xs bg-classified-cui/20 text-classified-cui px-2 py-1 rounded font-mono">COMING SOON</span>
+                <ArrowRight className="w-5 h-5 text-cyber-primary opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <p className="text-gray-400 text-sm">Real-time intelligence operations center</p>
-            </div>
+            </Link>
             
             <div className="intel-card p-6 opacity-50">
               <div className="flex items-center justify-between mb-2">
@@ -266,15 +267,16 @@ export default function HomePage() {
         </section>
 
         {/* System Notice */}
-        <div className="mt-12 intel-card p-6 border-l-4 border-l-threat-info">
+        <div className="mt-12 intel-card p-6 border-l-4 border-l-green-500">
           <div className="flex items-start gap-4">
-            <AlertTriangle className="w-6 h-6 text-threat-info flex-shrink-0 mt-1" />
+            <Shield className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />
             <div>
-              <h3 className="text-white font-semibold mb-2 font-mono">SYSTEM NOTICE</h3>
+              <h3 className="text-white font-semibold mb-2 font-mono">SYSTEM STATUS</h3>
               <p className="text-gray-400 text-sm">
-                Sentinel is currently in <span className="text-cyber-primary font-semibold">Phase 1: Infrastructure Setup</span>. 
-                Intelligence collection and analysis services are being initialized. Backend API endpoints are operational. 
-                Full operational capability expected in subsequent development phases.
+                Sentinel is now in <span className="text-cyber-primary font-semibold">Phase 6: UI & Visualization</span>. 
+                Intelligence collection, fusion, analytics, and product generation services are <span className="text-green-500 font-semibold">OPERATIONAL</span>. 
+                Intelligence dashboard with interactive visualizations now available. 
+                Progress: <span className="text-cyber-primary font-semibold">6 of 7 phases complete (86%)</span>.
               </p>
             </div>
           </div>
